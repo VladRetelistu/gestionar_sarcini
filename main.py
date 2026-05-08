@@ -7,6 +7,7 @@ from typing import Optional
 # pyrefly: ignore [missing-import]
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field, field_validator
 # ---------------------------------------------------------------------------
@@ -20,7 +21,6 @@ EXPIRARE_TOKEN_MINUTE = 30
 
 context_parola = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_schema = OAuth2PasswordBearer(tokenUrl="autentificare")
-
 
 # ---------------------------------------------------------------------------
 # Baza de date
@@ -72,7 +72,17 @@ async def durata_de_viata(app: FastAPI):
 
 app = FastAPI(title="Gestionar de sarcini", version="1.0.0", lifespan=durata_de_viata)
 
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5500", # VS Code Live Server (portul implicit)
+        "http://127.0.0.1:5500", # Varianta alternativa a aceluiasi server
+        "null", # Fisier deschis direct din sistem de fisiere
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # ---------------------------------------------------------------------------
 # Modele Pydantic
 # ---------------------------------------------------------------------------

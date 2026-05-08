@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestionar de sarcini</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .navbar-text-status { font-size: 0.9rem; color: #e0eaff; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary">
+    <div class="container">
+        <span class="navbar-brand fw-bold">Gestionar de sarcini</span>
+        
+        <div id="status-sarcini" class="navbar-text-status d-none">
+            <span id="contor-text">0 sarcini / 0 finalizate</span>
+        </div>
+
+        <div id="info-utilizator" class="d-none align-items-center gap-3">
+            <span id="email-utilizator" class="text-white small"></span>
+            <button class="btn btn-outline-light btn-sm" onclick="deconecteaza()">Deconectare</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+
+    <div id="sectiune-auth">
+        <div class="row justify-content-center">
+            <div class="col-md-5">
+                <div id="form-inregistrare" class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Înregistrare</h5>
+                        <div id="eroare-inregistrare" class="alert alert-danger d-none"></div>
+                        <div id="succes-inregistrare" class="alert alert-success d-none"></div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="reg-email" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Parolă</label>
+                            <input type="password" id="reg-parola" class="form-control">
+                        </div>
+                        <button class="btn btn-primary w-100" onclick="inregistreaza()">Înregistrează-te</button>
+                        <p class="text-center mt-3 mb-0">
+                            Ai deja cont? <a href="#" onclick="comutaFormular(); return false;">Autentifică-te</a>
+                        </p>
+                    </div>
+                </div>
+
+                <div id="form-autentificare" class="card d-none">
+                    <div class="card-body">
+                        <h5 class="card-title">Autentificare</h5>
+                        <div id="eroare-autentificare" class="alert alert-danger d-none"></div>
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="auth-email" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Parolă</label>
+                            <input type="password" id="auth-parola" class="form-control">
+                        </div>
+                        <button class="btn btn-primary w-100" onclick="autentifica()">Conectează-te</button>
+                        <p class="text-center mt-3 mb-0">
+                            Nu ai cont? <a href="#" onclick="comutaFormular(); return false;">Înregistrează-te</a>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sectiune-sarcini" class="d-none">
+
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Adaugă o sarcină</h5>
+                <div class="mb-3">
+                    <input type="text" id="sarcina-titlu" class="form-control" placeholder="Titlu">
+                </div>
+                <div class="mb-3">
+                    <textarea id="sarcina-descriere" class="form-control" placeholder="Descriere (opțional)" rows="2"></textarea>
+                </div>
+                <button class="btn btn-success" onclick="adaugaSarcina()">Adaugă</button>
+            </div>
+        </div>
+
+        <div class="row mb-3 g-3 align-items-center">
+            <div class="col-md-10">
+                <input type="text" id="cautare-client" class="form-control" 
+                    placeholder="Caută în titlurile de mai jos..." oninput="filtreazaLocal()">
+            </div>
+    
+            <div class="col-md-2 d-flex justify-content-md-end">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="filtru-nefinalizate" onclick="incarcaSarcini()">
+                    <label class="form-check-label text-nowrap" for="filtru-nefinalizate">Doar nefinalizate</label>
+                </div>
+            </div>
+        </div>
+        
+        <div id="lista-sarcini"></div>
+
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const API = "http://localhost:8000";
+    let sarciniLocale = []; // Stocăm sarcinile aici pentru filtrarea pe client
+
+    // -------- Gestionarea token-ului --------
+    function salveazaToken(token) { localStorage.setItem("token", token); }
+    function obtineToken() { return localStorage.getItem("token"); }
+    function deconecteaza() { 
+        localStorage.removeItem("token"); 
+        document.getElementById("status-sarcini").classList.add("d-none");
+        actualizeazaUI(); 
+    }
+
+    function actualizeazaUI() {
+        const token = obtineToken();
+        if (token) {
+            document.getElementById("sectiune-auth").classList.add("d-none");
+            document.getElementById("sectiune-sarcini").classList.remove("d-none");
+            document.getElementById("info-utilizator").classList.replace("d-none", "d-flex");
+            document.getElementById("status-sarcini").classList.remove("d-none");
+            try {
+                const payload = JSON.parse(atob(token.split(".")[1]));
+                document.getElementById("email-utilizator").textContent = payload.sub;
+            } catch (e) { }
+            incarcaSarcini();
+        } else {
+            document.getElementById("sectiune-auth").classList.remove("d-none");
+            document.getElementById("sectiune-sarcini").classList.add("d-none");
+            document.getElementById("info-utilizator").classList.replace("d-flex", "d-none");
+        }
+    }
+
+    function comutaFormular() {
+        document.getElementById("form-inregistrare").classList.toggle("d-none");
+        document.getElementById("form-autentificare").classList.toggle("d-none");
+    }
+
+    // -------- Sarcini Core Logic --------
+
+    async function incarcaSarcini() {
+        const token = obtineToken();
+        const doarNefinalizate = document.getElementById("filtru-nefinalizate").checked;
+        const url = `${API}/sarcini${doarNefinalizate ? '?doar_nefinalizate=true' : ''}`;
+
+        try {
+            const raspuns = await fetch(url, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (raspuns.status === 401) { deconecteaza(); return; }
+            sarciniLocale = await raspuns.json();
+            
+            // După fetch, aplicăm și eventualul filtru de căutare scris deja
+            filtreazaLocal();
+        } catch {
+            document.getElementById("lista-sarcini").innerHTML = `<div class="alert alert-danger">Eroare server.</div>`;
+        }
+    }
+
+    // Căutare pe client (Array.filter)
+    function filtreazaLocal() {
+        const query = document.getElementById("cautare-client").value.toLowerCase();
+        const sarciniFiltrate = sarciniLocale.filter(s => 
+            s.titlu.toLowerCase().includes(query)
+        );
+        randeazaSarcini(sarciniFiltrate);
+    }
+
+    function randeazaSarcini(sarcini) {
+        // Actualizare Contor (calculat din array)
+        const totalSarcini = sarciniLocale.length;
+        const finalizate = sarciniLocale.filter(s => s.finalizata).length;
+        document.getElementById("contor-text").textContent = `${totalSarcini} sarcini / ${finalizate} finalizate`;
+
+        const container = document.getElementById("lista-sarcini");
+        if (sarcini.length === 0) {
+            container.innerHTML = `<p class="text-muted">Nicio sarcină găsită.</p>`;
+            return;
+        }
+
+        container.innerHTML = sarcini.map(s => `
+            <div class="card mb-2" id="sarcina-${s.id}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start" id="vizualizare-${s.id}">
+                        <div>
+                            <h6 class="mb-1">
+                                <span>${escapeHtml(s.titlu)}</span>
+                                <span class="badge ${s.finalizata ? 'bg-success' : 'bg-secondary'} ms-2">
+                                    ${s.finalizata ? 'Finalizată' : 'În progres'}
+                                </span>
+                            </h6>
+                            <p class="text-muted small mb-0">${escapeHtml(s.descriere || '')}</p>
+                        </div>
+                        <div class="d-flex gap-2 ms-3 flex-shrink-0">
+                            <button class="btn btn-sm btn-outline-primary" onclick="activeazaEditare(${s.id})">Editează</button>
+                            <button class="btn btn-sm btn-outline-success" onclick="finalizeazaSarcina(${s.id})" ${s.finalizata ? 'disabled' : ''}>Finalizează</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="stergeSarcina(${s.id})">Șterge</button>
+                        </div>
+                    </div>
+
+                    <div id="editare-${s.id}" class="d-none">
+                        <input type="text" id="edit-titlu-${s.id}" class="form-control form-control-sm mb-1" value="${escapeHtml(s.titlu)}">
+                        <textarea id="edit-desc-${s.id}" class="form-control form-control-sm mb-2" rows="2">${escapeHtml(s.descriere || '')}</textarea>
+                        <button class="btn btn-sm btn-success" onclick="salveazaEditare(${s.id})">Salvează</button>
+                        <button class="btn btn-sm btn-secondary" onclick="anuleazaEditare(${s.id})">Anulează</button>
+                    </div>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    async function stergeSarcina(id) {
+        // Implementare Confirmare Ștergere
+        if (!window.confirm("Ești sigur că vrei să ștergi această sarcină?")) {
+            return;
+        }
+
+        const token = obtineToken();
+        try {
+            const raspuns = await fetch(`${API}/sarcini/${id}`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (raspuns.ok) incarcaSarcini();
+        } catch { alert("Eroare la ștergere."); }
+    }
+
+    // Funcțiile de suport (Auth, Editare, Utilitare) rămân similare...
+    async function autentifica() {
+        const email = document.getElementById("auth-email").value;
+        const parola = document.getElementById("auth-parola").value;
+        const body = new URLSearchParams({ "username": email, "password": parola });
+        try {
+            const raspuns = await fetch(`${API}/autentificare`, { method: "POST", body });
+            if (raspuns.ok) {
+                const date = await raspuns.json();
+                salveazaToken(date.access_token);
+                actualizeazaUI();
+            } else { afiseazaEroare("eroare-autentificare", "Date invalide."); }
+        } catch { afiseazaEroare("eroare-autentificare", "Server indisponibil."); }
+    }
+
+    async function inregistreaza() {
+        const email = document.getElementById("reg-email").value;
+        const parola = document.getElementById("reg-parola").value;
+        try {
+            const raspuns = await fetch(`${API}/inregistrare`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email, parola })
+            });
+            if (raspuns.ok) {
+                afiseazaSucces("succes-inregistrare", "Cont creat!");
+                setTimeout(comutaFormular, 1000);
+            } else {
+                const err = await raspuns.json();
+                afiseazaEroare("eroare-inregistrare", err.detail);
+            }
+        } catch { afiseazaEroare("eroare-inregistrare", "Server indisponibil."); }
+    }
+
+    async function adaugaSarcina() {
+        const titlu = document.getElementById("sarcina-titlu").value.trim();
+        if (!titlu) return;
+        const token = obtineToken();
+        const descriere = document.getElementById("sarcina-descriere").value.trim();
+        const raspuns = await fetch(`${API}/sarcini`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({ titlu, descriere })
+        });
+        if (raspuns.ok) {
+            document.getElementById("sarcina-titlu").value = "";
+            document.getElementById("sarcina-descriere").value = "";
+            incarcaSarcini();
+        }
+    }
+
+    async function finalizeazaSarcina(id) {
+        const token = obtineToken();
+        const raspuns = await fetch(`${API}/sarcini/${id}/finalizeaza`, {
+            method: "PATCH",
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (raspuns.ok) incarcaSarcini();
+    }
+
+    function activeazaEditare(id) {
+        document.getElementById(`vizualizare-${id}`).classList.add("d-none");
+        document.getElementById(`editare-${id}`).classList.remove("d-none");
+    }
+
+    function anuleazaEditare(id) {
+        document.getElementById(`vizualizare-${id}`).classList.remove("d-none");
+        document.getElementById(`editare-${id}`).classList.add("d-none");
+    }
+
+    async function salveazaEditare(id) {
+        const titlu = document.getElementById(`edit-titlu-${id}`).value.trim();
+        const descriere = document.getElementById(`edit-desc-${id}`).value.trim();
+        if (!titlu) return;
+        const token = obtineToken();
+        try {
+            const raspuns = await fetch(`${API}/sarcini/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+                body: JSON.stringify({ titlu, descriere })
+            });
+            if (raspuns.ok) incarcaSarcini();
+        } catch { alert("Eroare la salvare."); }
+    }
+
+    function afiseazaEroare(id, msg) { const e = document.getElementById(id); e.textContent = msg; e.classList.remove("d-none"); }
+    function afiseazaSucces(id, msg) { const e = document.getElementById(id); e.textContent = msg; e.classList.remove("d-none"); }
+    function escapeHtml(t) { const d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
+
+    document.addEventListener("DOMContentLoaded", actualizeazaUI);
+</script>
+</body>
+</html>
