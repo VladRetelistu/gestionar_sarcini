@@ -82,11 +82,7 @@ app = FastAPI(title="Gestionar de sarcini", version="1.0.0", lifespan=durata_de_
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5500", # VS Code Live Server (portul implicit)
-        "http://127.0.0.1:5500", # Varianta alternativa a aceluiasi server
-        "null", # Fisier deschis direct din sistem de fisiere
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
